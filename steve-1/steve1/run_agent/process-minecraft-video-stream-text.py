@@ -1,0 +1,421 @@
+import argparse
+import json
+import os
+
+import cv2
+import numpy as np
+import torch
+from steve1.data.text_alignment.vae import load_vae_model
+from steve1.utils.mineclip_agent_env_utils import load_mineclip_agent_env
+from steve1.utils.text_overlay_utils import created_fitted_text_image
+from steve1.utils.video_utils import save_frames_as_video
+
+from steve1.config import PRIOR_INFO, DEVICE
+from steve1.utils.embed_utils import get_prior_embed
+
+FPS = 20
+
+import gi
+import cv2
+import numpy as np
+import threading
+
+import subprocess
+import json
+
+# Import GStreamer and GLib
+gi.require_version("Gst", "1.0")
+from gi.repository import Gst, GLib
+
+from argparse import ArgumentParser
+import pickle
+
+from Xlib import X, display, error
+from Xlib.ext import xfixes
+from Xlib.ext.xtest import fake_input
+from Xlib.XK import string_to_keysym
+
+from Xlib.Xatom import WM_NAME
+
+import subprocess
+import json
+
+import ctypes
+import cursor_info
+
+import io
+import cv2
+
+
+WIDTH = '640'
+HEIGHT = '360'
+FRAMERATE = '1'
+SHM_SOCKET = "/tmp/minecraft_video"
+WINDOW_NAME="640x360_1mb.mp4 - VLC media player"
+#WINDOW_NAME = "Minecraft* 1.19.4 - Singleplayer"
+MODEL = 'foundation-model-2x.model'
+WEIGHTS = 'rl-from-foundation-2x.weights'
+
+# scaler to convert from pixel delta to angle delta
+# taken from Video Pre-Training's run_inverse_dynamics_model.py
+CAMERA_SCALER = 360.0 / 2400.0
+EXTRA_FACTOR = 1.0
+
+def dump(a, obs, i):
+    
+    s = io.StringIO()
+    
+    print(a['inventory'][0], end=' | ', file=s)
+    print(a['forward'][0], a['back'][0], a['left'][0], a['right'][0], a['jump'][0], end=' | ', file=s)
+    print(a['sprint'][0], a['sneak'][0], a['drop'][0], end=' | ', file=s)
+    print(a['attack'][0], a['use'][0], end=' | ', file=s)
+    print(a['hotbar.1'][0], a['hotbar.2'][0], a['hotbar.3'][0], a['hotbar.4'][0], end=' ', file=s)
+    print(a['hotbar.5'][0], a['hotbar.6'][0], a['hotbar.7'][0], a['hotbar.8'][0], a['hotbar.9'][0], end=' | ', file=s)
+    print(format(a['camera'][0][0], "+06.2f"), format(a['camera'][0][1], "+06.2f"), end='', file=s)
+
+    ss = s.getvalue()
+    sss = f"{i:05d} ({ss})"
+    print(sss)
+
+    print("obs['inventory']")
+    for k, v in obs['inventory'].items():
+        vv = v.tolist()
+        if vv > 0:
+            print(k, vv)
+
+    #rgb = obs['pov']
+    #bgr = rgb[:,:,::-1]
+    #cv2.imwrite(sss + '.png', bgr)
+
+def process_frame(frame, ctx):
+    ctx['obs']['pov'] = frame
+    agent = ctx['agent']
+    with torch.cuda.amp.autocast():
+        action = agent.get_action(ctx['obs'], ctx['prompt_embed'])
+
+    i = ctx.get('i', 1)
+    dump(action, ctx['obs'], i)
+    ctx['i'] = i + 1
+
+    dpy = ctx['dpy']
+    root = ctx['root']
+    window = ctx['window']
+    dpy_ptr = ctx['dpy_ptr']
+    width = ctx['width']
+    height = ctx['height']
+    x = ctx['x']
+    y = ctx['y']
+
+    keymap = dpy.query_keymap()
+    pointer = root.query_pointer()
+    cursor = cursor_info.get(dpy_ptr)
+
+    # Focus the Minecraft window
+    window.configure(stack_mode=X.Above)
+    window.set_input_focus(X.RevertToParent, X.CurrentTime)
+    dpy.sync()
+
+    def in_play():
+        #print('cursor:', cursor)
+        return cursor == (0, 0)
+
+    def is_key_pressed(keycode):
+        return bool(keymap[keycode // 8] & (1 << (keycode % 8)))
+
+    def is_button_pressed(num):
+        masks = { 1 : X.Button1Mask, 3 : X.Button3Mask } 
+        return pointer.mask & masks[num] != 0
+    
+    def state_to_button(name, num): 
+        if action.get(name, 0) == 1:
+            if not is_button_pressed(num):
+                fake_input(dpy, X.ButtonPress, num)
+        else:
+            if is_button_pressed(num):
+                fake_input(dpy, X.ButtonRelease, num)
+
+    def state_to_key(name, keystring): 
+        keysym = string_to_keysym(keystring)
+        keycode = dpy.keysym_to_keycode(keysym)
+        if action.get(name, 0) == 1:
+            if not is_key_pressed(keycode):
+                #print('state_to_key:', name, 'press')
+                fake_input(dpy, X.KeyPress, keycode)
+        else:
+            if is_key_pressed(keycode):
+                #print('state_to_key:', name, 'release')
+                fake_input(dpy, X.KeyRelease, keycode)
+
+    def change_to_key(name, keystring, curr, recent):
+        keysym = string_to_keysym(keystring)
+        keycode = dpy.keysym_to_keycode(keysym)
+        # Keep track of the most recent action
+        recent_action = ctx.get(name, 0)
+        curr_action = action.get(name, 0)
+        if curr_action == curr and recent_action == recent:
+            #print('change_to_key:', name, curr, recent)
+            fake_input(dpy, X.KeyPress, keycode)
+            fake_input(dpy, X.KeyRelease, keycode)
+        # Don't forget to update the recent for the next frame
+        ctx[name] = curr_action
+
+    change_to_key("inventory", "e", 1, 0)
+    
+    if in_play():
+        # following keys are only meaningful in game play
+        state_to_key("forward", "w")
+        state_to_key("back", "s")
+        state_to_key("left", "a")
+        state_to_key("right", "d")
+        state_to_key("jump", "space")
+
+    # the following hotkeys are used both in game play and in inventory menu
+    change_to_key("hotbar.1", "1", 1, 0)
+    change_to_key("hotbar.2", "2", 1, 0)
+    change_to_key("hotbar.3", "3", 1, 0)
+    change_to_key("hotbar.4", "4", 1, 0)
+    change_to_key("hotbar.5", "5", 1, 0)
+    change_to_key("hotbar.6", "6", 1, 0)
+    change_to_key("hotbar.7", "7", 1, 0)
+    change_to_key("hotbar.8", "8", 1, 0)
+    change_to_key("hotbar.9", "9", 1, 0)
+
+    # the following keys are used both in game play and in inventory menu
+    state_to_key("sprint", "Control_L")
+    state_to_key("sneak", "Shift_L")
+    state_to_key("drop", "q")
+
+    # mouse left and right buttons are used both in game play and in inventory memu
+    state_to_button("attack", 1)
+    state_to_button("use", 3)
+    
+    # mouse movement are used both in game play and in inventory menu
+    pitch_delta, yaw_delta = action.get("camera", [0, 0])[0]
+    #print('pitch_dalta, yaw_delta:', pitch_delta, yaw_delta)
+
+    def angle2pixel(x):
+        bin_ix = agent.action_transformer.discretize_camera(x)
+        v_decode = agent.action_transformer.undiscretize_camera(bin_ix)
+        v_decode = v_decode / CAMERA_SCALER
+        if pointer.mask & X.Button1Mask == 0:
+            v_decode *= EXTRA_FACTOR
+        return int(v_decode)
+
+    dx = angle2pixel(yaw_delta)
+    dy = angle2pixel(pitch_delta)
+    #print(' dx, dy:', dx, dy)
+    if (dx, dy) != (0.0, 0.0):
+        left = x
+        right = x + width
+        top = y
+        bottom = y + height
+    
+        new_pointer_x = int(np.clip(pointer.root_x + dx, left+1, right-1))
+        new_pointer_y = int(np.clip(pointer.root_y + dy, top+1, bottom-1))
+        #if pointer.mask & X.Button1Mask != 0:
+        fake_input(dpy, X.MotionNotify, x=new_pointer_x, y=new_pointer_y)
+        #else:
+        #root.warp_pointer(new_pointer_x, new_pointer_y)
+    
+    # Sync the display to send the events
+    dpy.sync()
+    return True
+
+def init_video():
+    print('===init_video===')
+    Gst.init(None)
+
+    # Define the GStreamer pipeline with a smaller resolution (640x360)
+    pipeline_description = f"""
+        shmsrc socket-path={SHM_SOCKET} ! 
+        video/x-raw,format=RGB,width=640,height=360,framerate={FRAMERATE}/1 ! 
+        appsink name=sink emit-signals=True
+    """
+
+    # Create the pipeline
+    pipeline = Gst.parse_launch(pipeline_description)
+
+    # Get the appsink element
+    appsink = pipeline.get_by_name("sink")
+    print('===init_video DONE===')
+    return pipeline, appsink
+
+def init_gui(window_name):
+    print('===init_gui===')
+    dpy = display.Display()
+    
+    # Skip display.sync() to avoid RandR errors
+    # dpy.sync()  # Comment this out or remove it
+    
+    # Get the root window
+    root = dpy.screen().root
+    
+    # Recursive function to search for the window by name
+    def find_window_by_name(window, name):
+        # Check the WM_NAME property of the window
+        try:
+            window_name = window.get_full_text_property(WM_NAME)
+            if window_name and window_name == name:
+                return window  # Return the window object
+        except error.BadWindow:
+            pass
+        
+        # Recursively check child windows
+        for child in window.query_tree().children:
+            result = find_window_by_name(child, name)
+            if result:
+                return result
+        return None
+    
+    # Search for the window starting from the root window
+    target_window = find_window_by_name(root, window_name)
+    
+    if target_window is None:
+        print(f"Window with name '{window_name}' not found.")
+        return None
+    
+    # Function to calculate absolute coordinates
+    def get_absolute_coords(window):
+        x, y = 0, 0
+        while window:
+            try:
+                # Get the geometry of the current window
+                geom = window.get_geometry()
+                x += geom.x
+                y += geom.y
+                # Move to the parent window
+                window = window.query_tree().parent
+            except error.BadWindow:
+                break
+        return x, y
+    
+    # Get the absolute coordinates of the window
+    abs_x, abs_y = get_absolute_coords(target_window)
+
+    # Get the window geometry (width and height)
+    try:
+        geometry = target_window.get_geometry()
+    except error.BadWindow:
+        print(f"Failed to get geometry for window '{window_name}'.")
+        return None
+    
+    # cih: cursor info handle
+    dpy_ptr = cursor_info.open()
+    
+    print('===init_gui DONE===')
+    return dpy, root, target_window, dpy_ptr, geometry.width, geometry.height, abs_x, abs_y
+
+def init_simulator(in_model, in_weights, seed, cond_scale, prior_info):
+    print('===init_simulator===')
+    agent, mineclip, env = load_mineclip_agent_env(in_model, in_weights, seed, cond_scale)
+    obs = env.reset()
+    prior = load_vae_model(prior_info)
+    print('===init_simulator DONE===')
+    return env, obs, agent, mineclip, prior
+
+# Callback function to handle new frames from appsink
+def on_new_sample(sink, ctx):
+    # Pull the sample from the appsink
+    sample = sink.emit("pull-sample")
+    if sample is None:
+        return Gst.FlowReturn.ERROR
+
+    # Get the buffer from the sample
+    buffer = sample.get_buffer()
+
+    # Extract the frame data
+    success, map_info = buffer.map(Gst.MapFlags.READ)
+    if not success:
+        return Gst.FlowReturn.ERROR
+
+     # Convert the frame data to a numpy array
+    frame = np.ndarray(
+        shape=(360, 640, 3), # height, width, color layers
+        dtype=np.uint8,
+        buffer=map_info.data
+    )
+
+    # Process the frame in the main thread
+    GLib.idle_add(lambda frame: process_frame(frame, ctx), frame)
+
+    # Unmap the buffer
+    buffer.unmap(map_info)
+
+    return Gst.FlowReturn.OK
+
+# Function to handle user input
+def process_prompt(ctx):
+    while True:
+        prompt = input("Enter prompt: ")
+        print(f"You entered: {prompt}")
+        ctx["prompt_embed"] = get_prior_embed(prompt, ctx["mineclip"], ctx["prior"], DEVICE) 
+
+def init_prompt(ctx):
+    print('====init_prompt====')
+    # Start the user input thread
+    #prompt_thread = threading.Thread(target=process_prompt)
+    prompt_thread = threading.Thread(target=lambda : process_prompt(ctx))
+    prompt_thread.daemon = True
+    prompt_thread.start()
+    print('====init_prompt DONE====')
+    return prompt_thread
+
+def main(in_model, in_weights, cond_scale, seed, prior_info, output_video_dirpath, latency):
+    pipeline, appsink = init_video()
+    dpy, root, window, dpy_ptr, width, height, x, y = init_gui(WINDOW_NAME)
+    env, obs, agent, mineclip, prior = init_simulator(in_model, in_weights, seed, cond_scale, prior_info)
+
+    ctx = {'env':env, 'obs':obs, 'agent':agent,
+           'dpy':dpy, 'root':root, 'window':window, 'dpy_ptr': dpy_ptr,
+           'width':width, 'height':height, 'x':x, 'y':y,
+           'mineclip':mineclip, 'prior':prior}
+
+    prompt_thread = init_prompt(ctx)
+
+    # Connect the callback to the appsink
+    appsink.connect("new-sample", lambda appsink: on_new_sample(appsink, ctx))
+
+    # Start the pipeline
+    pipeline.set_state(Gst.State.PLAYING)
+
+    # Main loop to keep the script running
+    main_loop = GLib.MainLoop()
+
+    # Run the main loop in a separate thread
+    def run_main_loop():
+        main_loop.run()
+
+    # Start the main loop thread
+    main_loop_thread = threading.Thread(target=run_main_loop)
+    main_loop_thread.start()
+
+    # Wait for the main loop thread to finish
+    try:
+        main_loop_thread.join()
+    except KeyboardInterrupt:
+        pass
+
+    # Clean up
+    pipeline.set_state(Gst.State.NULL)
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--in_model', type=str, default='data/weights/vpt/2x.model')
+    parser.add_argument('--in_weights', type=str, default='data/weights/steve1/steve1.weights')
+    parser.add_argument('--prior_weights', type=str, default='data/weights/steve1/steve1_prior.pt')
+    parser.add_argument('--output_video_dirpath', type=str, default='data/generated_videos/interactive_videos')
+    parser.add_argument('--minecraft_seed', type=float, default=None)  # None for random seed
+    parser.add_argument('--cond_scale', type=float, default=6.0)
+    parser.add_argument('--latency', type=int, default=0)
+    args = parser.parse_args()
+
+    main(
+        in_model=args.in_model,
+        in_weights=args.in_weights,
+        cond_scale=args.cond_scale,
+        seed=args.minecraft_seed,
+        prior_info=PRIOR_INFO,
+        output_video_dirpath=args.output_video_dirpath,
+        latency=args.latency
+    )

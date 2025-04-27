@@ -1,0 +1,122 @@
+
+/home/ubuntu/steve-1/steve1/VPT/lib/torch_util.py:36: UserWarning: 'has_cuda' is deprecated, please use 'torch.backends.cuda.is_built()'
+  return th.has_cuda
+[INFO:minedojo.tasks] Loaded 1581 Programmatic tasks, 1560 Creative tasks, and 1 special task: "Playthrough". Totally 3142 tasks loaded.
+/usr/local/lib/python3.10/dist-packages/transformers/tokenization_utils_base.py:1601: FutureWarning: `clean_up_tokenization_spaces` was not set. It will be set to `True` by default. This behavior will be depracted in transformers v4.45, and will be then set to `False` by default. For more details check this issue: https://github.com/huggingface/transformers/issues/31884
+  warnings.warn(
+
+/usr/lib/python3.10/runpy.py:126: RuntimeWarning: 'minerl.utils.process_watcher' found in sys.modules after import of package 'minerl.utils', but prior to execution of 'minerl.utils.process_watcher'; this may result in unpredictable behaviour
+  warn(RuntimeWarning(msg))
+Loading MineClip...
+
+Generating video for text prompt with name: dig
+Loading MineClip...
+Loading agent with cond_scale 6.0...
+Loading MineRL...
+Starting new env...
+Traceback (most recent call last):
+  File "/home/ubuntu/steve-1/steve1/run_agent/run_agent.py", line 100, in <module>
+    generate_text_prompt_videos(text_prompt_embeds, args.in_model, args.in_weights, args.text_cond_scale,
+  File "/home/ubuntu/steve-1/steve1/run_agent/run_agent.py", line 59, in generate_text_prompt_videos
+    run_agent(prompt_embed, gameplay_length, save_video_filepath,
+  File "/home/ubuntu/steve-1/steve1/run_agent/run_agent.py", line 23, in run_agent
+    agent, mineclip, env = load_mineclip_agent_env(in_model, in_weights, seed, cond_scale)
+  File "/home/ubuntu/steve-1/steve1/utils/mineclip_agent_env_utils.py", line 53, in load_mineclip_agent_env
+    env = make_env(seed)
+  File "/home/ubuntu/steve-1/steve1/utils/mineclip_agent_env_utils.py", line 30, in make_env
+    env.reset()
+  File "/home/ubuntu/minerl/minerl/env/_singleagent.py", line 22, in reset
+    multi_obs = super().reset()
+  File "/home/ubuntu/minerl/minerl/env/_multiagent.py", line 436, in reset
+    self._setup_instances()
+  File "/home/ubuntu/minerl/minerl/env/_multiagent.py", line 539, in _setup_instances
+    self.instances.extend([f.result() for f in instance_futures])
+  File "/home/ubuntu/minerl/minerl/env/_multiagent.py", line 539, in <listcomp>
+    self.instances.extend([f.result() for f in instance_futures])
+  File "/usr/lib/python3.10/concurrent/futures/_base.py", line 451, in result
+    return self.__get_result()
+  File "/usr/lib/python3.10/concurrent/futures/_base.py", line 403, in __get_result
+    raise self._exception
+  File "/usr/lib/python3.10/concurrent/futures/thread.py", line 58, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "/home/ubuntu/minerl/minerl/env/_multiagent.py", line 805, in _get_new_instance
+    instance.launch(replaceable=self._is_fault_tolerant)
+  File "/home/ubuntu/minerl/minerl/env/malmo.py", line 451, in launch
+    raise EOFError(
+EOFError: /home/ubuntu/minerl/minerl/env/../MCP-Reborn
+SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+SLF4J: Defaulting to no-operation (NOP) logger implementation
+SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+[18:00:37] [Render thread/INFO]: Environment: authHost='https://authserver.mojang.com', accountsHost='https://api.mojang.com', sessionHost='https://sessionserver.mojang.com', servicesHost='https://api.minecraftservices.com', name='PROD'
+[18:00:38] [Render thread/INFO]: Setting user: Player51
+[18:00:39] [Render thread/INFO]: Backend library: LWJGL version 3.2.2 SNAPSHOT
+---- Minecraft Crash Report ----
+// There are four lights!
+
+Time: 2/15/25 6:00 PM
+Description: Initializing game
+
+java.lang.IllegalStateException: Failed to initialize GLFW, errors: GLFW error during init: [0x10008]140419069369920
+	at com.mojang.blaze3d.platform.GLX._initGlfw(GLX.java:80)
+	at com.mojang.blaze3d.systems.RenderSystem.initBackendSystem(RenderSystem.java:586)
+	at net.minecraft.client.Minecraft.<init>(Minecraft.java:406)
+	at net.minecraft.client.main.Main.main(Main.java:154)
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Thread: Render thread
+Stacktrace:
+	at com.mojang.blaze3d.platform.GLX._initGlfw(GLX.java:80)
+	at com.mojang.blaze3d.systems.RenderSystem.initBackendSystem(RenderSystem.java:586)
+	at net.minecraft.client.Minecraft.<init>(Minecraft.java:406)
+
+-- Initialization --
+Details:
+Stacktrace:
+	at net.minecraft.client.main.Main.main(Main.java:154)
+
+-- System Details --
+Details:
+	Minecraft Version: 1.16.5
+	Minecraft Version ID: 1.16.5
+	Operating System: Linux (amd64) version 5.19.0-1024-aws
+	Java Version: 1.8.0_442, Private Build
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode), Private Build
+	Memory: 626403232 bytes (597 MB) / 1444413440 bytes (1377 MB) up to 3817865216 bytes (3641 MB)
+	CPUs: 8
+	JVM Flags: 1 total; -Xmx4G
+	Launched Version: ~~NULL~~
+	Backend library: LWJGL version 3.2.2 SNAPSHOT
+	Backend API: NO CONTEXT
+	GL Caps: 
+	Using VBOs: Yes
+	Is Modded: Very likely; Jar signature invalidated
+	Type: Client (map_client.txt)
+	CPU: <unknown>
+[18:00:39] [Render thread/ERROR]: Could not save crash report to ./crash-reports/crash-2025-02-15_18.00.39-client.txt
+java.io.FileNotFoundException: ./crash-reports/crash-2025-02-15_18.00.39-client.txt (No such file or directory)
+	at java.io.FileOutputStream.open0(Native Method) ~[?:1.8.0_442]
+	at java.io.FileOutputStream.open(FileOutputStream.java:270) ~[?:1.8.0_442]
+	at java.io.FileOutputStream.<init>(FileOutputStream.java:213) ~[?:1.8.0_442]
+	at java.io.FileOutputStream.<init>(FileOutputStream.java:162) ~[?:1.8.0_442]
+	at net.minecraft.crash.CrashReport.saveToFile(CrashReport.java:179) [mcprec-6.13.jar:?]
+	at net.minecraft.client.Minecraft.displayCrashReport(Minecraft.java:708) [mcprec-6.13.jar:?]
+	at net.minecraft.client.main.Main.main(Main.java:167) [mcprec-6.13.jar:?]
+#@?@# Game crashed! Crash report could not be saved. #@?@#
+
+
+Minecraft process finished unexpectedly. There was an error with Malmo.
+
+Encountered an error (likely internal MineRL error), restarting (will skip existing videos)...
+NOTE: If not MineRL error, then there might be a bug or the parameters might be wrong.
+Traceback (most recent call last):
+  File "/home/ubuntu/steve-1/steve1/run_agent/run_agent.py", line 9, in <module>
+    from steve1.config import PRIOR_INFO, DEVICE
+  File "/home/ubuntu/steve-1/steve1/config.py", line 17, in <module>
+    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+  File "/usr/local/lib/python3.10/dist-packages/torch/cuda/__init__.py", line 118, in is_available
+    return torch._C._cuda_getDeviceCount() > 0
+KeyboardInterrupt

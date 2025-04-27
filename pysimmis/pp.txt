@@ -1,0 +1,9 @@
+describe exactly every item and their count that you see in this minecraft hotbar.
+Output must be of the form
+"Item": "count"
+"Item", "count"
+
+for example:
+"Wood": 10
+"Sticks": 3
+"Crafting Table": 2

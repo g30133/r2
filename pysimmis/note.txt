@@ -1,0 +1,8 @@
+
+
+
+OK:      other player ---voice-->  SINK1(AUDIO OUTPUT DEVICE) --SINK1.monitor--> ffmpeg ----> playervoice.wav
+ 
+         transcription --ffplay(or paplay)--> SINK2(AIDIO OUTPUT DEVICE) --SINK2.monitor ----> AgentMic --voice chat-->  other player  
+
+
