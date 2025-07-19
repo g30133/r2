@@ -54,7 +54,6 @@ In the second xterm window (Terminal B), you will start the STEVE-1 agent script
 
 ```bash
 . ~/.profile
-cd /home/ubuntu/steve-1
 . run_agent/run_steve1.sh
 ```
 Be patient. The first time you run the agent, it may take several minutes to initialize.
