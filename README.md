@@ -61,7 +61,7 @@ Be patient. The first time you run the agent, it may take several minutes to ini
 Wait for the message ```init_frame_control DONE``` to appear in the terminal. This indicates that the agent is ready and waiting for the game to start.
 
 ### Connect Agent and Launch Game
-Launch Minecraft from MultiMC and create or load into a single-player world.
+Launch Minecraft 1.19.4 from MultiMC and create or load into a single-player world.
 
 STEVE-1 should automatically take control of your character once you are in game. You can also connect to any multiplayer server that is on Minecraft version ```1.19.4```.
 
